@@ -146,7 +146,7 @@ func parseVertexData(e *internal.Element) *DmeVertexData {
 	if e.Type != "DmeVertexData" {
 		panic("dmx: invalid element type")
 	}
-	return &DmeVertexData{
+	result := &DmeVertexData{
 		VertexFormat:              e.Attributes["vertexFormat"].([]string),
 		JointCount:                e.Attributes["jointCount"].(int32),
 		Positions:                 e.Attributes["positions"].([][3]float32),
@@ -155,9 +155,14 @@ func parseVertexData(e *internal.Element) *DmeVertexData {
 		NormalsIndices:            e.Attributes["normalsIndices"].([]int32),
 		TextureCoordinates:        e.Attributes["textureCoordinates"].([][2]float32),
 		TextureCoordinatesIndices: e.Attributes["textureCoordinatesIndices"].([]int32),
-		JointWeights:              e.Attributes["jointWeights"].([]float32),
-		JointIndices:              e.Attributes["jointIndices"].([]int32),
 	}
+	if e.Attributes["jointWeights"] != nil {
+		result.JointWeights = e.Attributes["jointWeights"].([]float32)
+	}
+	if e.Attributes["jointIndeices"] != nil {
+		result.JointIndices = e.Attributes["jointIndices"].([]int32)
+	}
+	return result
 }
 
 type DmeFaceSet struct {

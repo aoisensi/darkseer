@@ -15,7 +15,6 @@ func (d *Decoder) decodeBinary() (*Element, error) {
 	var numNames int16
 	binary.Read(d.r, binary.LittleEndian, &numNames)
 	d.names = make([]string, numNames)
-	fmt.Println(numNames)
 	for i := range d.names {
 		var err error
 		d.names[i], err = d.decodeString()
@@ -163,11 +162,11 @@ func (d *Decoder) decodeBinaryAttribute(typeID byte) any {
 		return result
 	case 2:
 		result := make([]int32, length)
-		binary.Read(d.r, binary.LittleEndian, &result)
+		binary.Read(d.r, binary.LittleEndian, result)
 		return result
 	case 3:
 		result := make([]float32, length)
-		binary.Read(d.r, binary.LittleEndian, &result)
+		binary.Read(d.r, binary.LittleEndian, result)
 		return result
 	case 4:
 		result := make([]bool, length)

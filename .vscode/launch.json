@@ -11,7 +11,7 @@
             "mode": "auto",
             "cwd": ".",
             "program": "${workspaceFolder}/cmd/darkseer",
-            "args": ["./subject/soldier_rocket.dmx"]
+            "args": ["./subject/more/*.dmx"]
         }
     ]
 }

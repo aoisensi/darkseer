@@ -133,6 +133,7 @@ func parseTransformList(e *internal.Element) *DmeTransformList {
 }
 
 type DmeTransform struct {
+	Name        string
 	Position    [3]float32
 	Orientation [4]float32
 }
@@ -145,6 +146,7 @@ func parseTransform(e *internal.Element) *DmeTransform {
 		panic("dmx: invalid element type")
 	}
 	return &DmeTransform{
+		Name:        e.Name,
 		Position:    e.Attributes["position"].([3]float32),
 		Orientation: e.Attributes["orientation"].([4]float32),
 	}

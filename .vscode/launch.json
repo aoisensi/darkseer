@@ -11,7 +11,7 @@
             "mode": "auto",
             "cwd": ".",
             "program": "${workspaceFolder}/cmd/darkseer",
-            "args": ["./subject/more/*.dmx"]
+            "args": ["./subject/soldier_reference_high.dmx"]
         }
     ]
 }

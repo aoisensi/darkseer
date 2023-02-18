@@ -22,10 +22,10 @@ func parseModelRoot(e *internal.Element) *DmeModelRoot {
 }
 
 type DmeModel struct {
-	Name      string
-	Transform *DmeTransform
-	Visible   bool
-	Children  []IDag
+	Name            string
+	Visible         bool
+	Children        []IDag
+	JointTransforms []*DmeTransform
 }
 
 func parseModel(e *internal.Element) *DmeModel {
@@ -35,12 +35,17 @@ func parseModel(e *internal.Element) *DmeModel {
 	if e.Type != "DmeModel" {
 		panic("dmx: invalid element type")
 	}
-	return &DmeModel{
-		Name:      e.Name,
-		Transform: parseTransform(e.Attributes["transform"].(*internal.Element)),
-		Visible:   e.Attributes["visible"].(bool),
-		Children:  parseDagList(e.Attributes["children"]),
+	model := &DmeModel{
+		Name:     e.Name,
+		Visible:  e.Attributes["visible"].(bool),
+		Children: parseDagList(e.Attributes["children"]),
 	}
+	if e.Attributes["jointTransforms"] != nil {
+		for _, e := range e.Attributes["jointTransforms"].([]*internal.Element) {
+			model.JointTransforms = append(model.JointTransforms, parseTransform(e))
+		}
+	}
+	return model
 }
 
 func parseModelList(e []*internal.Element) []*DmeModel {
@@ -159,7 +164,7 @@ func parseVertexData(e *internal.Element) *DmeVertexData {
 	if e.Attributes["jointWeights"] != nil {
 		result.JointWeights = e.Attributes["jointWeights"].([]float32)
 	}
-	if e.Attributes["jointIndeices"] != nil {
+	if e.Attributes["jointIndices"] != nil {
 		result.JointIndices = e.Attributes["jointIndices"].([]int32)
 	}
 	return result

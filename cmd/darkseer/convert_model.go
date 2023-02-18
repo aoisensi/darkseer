@@ -36,8 +36,11 @@ func convertModel(dmxElement *dmx.DmElement) (*gltf.Document, error) {
 	for _, dmxChild := range dmxElement.Model.Children {
 		var joints []uint32
 		if dmxJoint, ok := dmxChild.(*dmx.DmeJoint); ok {
-			var addJoint func(*dmx.DmeJoint) uint32
-			addJoint = func(dmxJoint *dmx.DmeJoint) uint32 {
+			var addJoint func(*dmx.DmeJoint) *uint32
+			addJoint = func(dmxJoint *dmx.DmeJoint) *uint32 {
+				if strings.Contains(dmxJoint.Name, "End") {
+					return nil
+				}
 				nodeID := uint32(len(doc.Nodes))
 				node := &gltf.Node{
 					Name:        dmxJoint.Name,
@@ -50,83 +53,91 @@ func convertModel(dmxElement *dmx.DmElement) (*gltf.Document, error) {
 				for _, child := range dmxJoint.Children {
 					if child, ok := child.(*dmx.DmeJoint); ok {
 						childID := addJoint(child)
-						node.Children = append(node.Children, childID)
+						if childID != nil {
+							node.Children = append(node.Children, *childID)
+						}
+
 					}
 				}
-				return nodeID
+				return &nodeID
 			}
 			rootBoneID := addJoint(dmxJoint)
-			scene.Nodes = append(scene.Nodes, rootBoneID)
+			scene.Nodes = append(scene.Nodes, *rootBoneID)
 			_skinID := uint32(len(doc.Skins))
 			skinID = &_skinID
 			doc.Skins = append(doc.Skins, &gltf.Skin{
 				Name:     "Armature",
-				Skeleton: &rootBoneID,
+				Skeleton: rootBoneID,
 				Joints:   joints,
 			})
 		}
 	}
 
 	// Find meshes
-	for _, dmxChild := range dmxElement.Model.Children {
-		if dmxDag, ok := dmxChild.(*dmx.DmeDag); ok {
-			if dmxDag.Mesh == nil {
+	var findMesh func([]dmx.IDag)
+	findMesh = func(dmxDags []dmx.IDag) {
+		for _, dmxDag := range dmxDags {
+			dmxDag, ok := dmxDag.(*dmx.DmeDag)
+			if !ok {
 				continue
 			}
 			meshName := strings.TrimSuffix(dmxDag.Name, "_mesh")
-			dmxMesh := dmxDag.Mesh
-			dmxVertexData := dmxMesh.CurrentState
-			mesh := &gltf.Mesh{Name: meshName}
-			attribute := gltf.Attribute{
-				"POSITION":   modeler.WritePosition(doc, dmxIndicesSort(dmxVertexData.PositionIndices, mulGlobalScale(dmxVertexData.Positions))),
-				"NORMAL":     modeler.WriteNormal(doc, dmxIndicesSort(dmxVertexData.NormalsIndices, dmxVertexData.Normals)),
-				"TEXCOORD_0": modeler.WriteTextureCoord(doc, dmxIndicesSort(dmxVertexData.TextureCoordinatesIndices, dmxUVToGLTFUV(dmxVertexData.TextureCoordinates))),
-			}
-			if len(dmxElement.Model.JointTransforms) > 0 {
-				jc := int(dmxVertexData.JointCount)
-				jointIndeices := make([][4]uint8, 0)
-				jointWeights := make([][4]float32, 0)
-				for i := range dmxVertexData.Positions {
-					var ji [4]uint8
-					var jw [4]float32
-					for j := 0; j < 4; j++ {
-						if j < jc {
-							_ji := dmxVertexData.JointIndices[i*jc+j]
-							ji[j] = uint8(jointMap[dmxElement.Model.JointTransforms[_ji].Name])
-							jw[j] = dmxVertexData.JointWeights[i*jc+j]
-						}
-					}
-					jointIndeices = append(jointIndeices, ji)
-					jointWeights = append(jointWeights, jw)
+			if dmxMesh := dmxDag.Mesh; dmxMesh != nil {
+				dmxVertexData := dmxMesh.CurrentState
+				mesh := &gltf.Mesh{Name: meshName}
+				attribute := gltf.Attribute{
+					"POSITION":   modeler.WritePosition(doc, dmxIndicesSort(dmxVertexData.PositionIndices, mulGlobalScale(dmxVertexData.Positions))),
+					"NORMAL":     modeler.WriteNormal(doc, dmxIndicesSort(dmxVertexData.NormalsIndices, dmxVertexData.Normals)),
+					"TEXCOORD_0": modeler.WriteTextureCoord(doc, dmxIndicesSort(dmxVertexData.TextureCoordinatesIndices, dmxUVToGLTFUV(dmxVertexData.TextureCoordinates))),
 				}
-				attribute["JOINTS_0"] = modeler.WriteJoints(doc, dmxIndicesSort(dmxVertexData.PositionIndices, jointIndeices))
-				attribute["WEIGHTS_0"] = modeler.WriteWeights(doc, dmxIndicesSort(dmxVertexData.PositionIndices, jointWeights))
-			}
-			for _, dmxFaceSet := range dmxMesh.FaceSets {
-				primitive := &gltf.Primitive{
-					Attributes: attribute,
-					Indices: gltf.Index(
-						modeler.WriteIndices(
-							doc,
-							int32SliceTouint16Slice(
-								dmxFacesetToGLTFIndices(dmxFaceSet.Faces),
+				if len(dmxElement.Model.JointTransforms) > 0 {
+					jc := int(dmxVertexData.JointCount)
+					jointIndeices := make([][4]uint8, 0)
+					jointWeights := make([][4]float32, 0)
+					for i := range dmxVertexData.Positions {
+						var ji [4]uint8
+						var jw [4]float32
+						for j := 0; j < 4; j++ {
+							if j < jc {
+								_ji := dmxVertexData.JointIndices[i*jc+j]
+								ji[j] = uint8(jointMap[dmxElement.Model.JointTransforms[_ji].Name])
+								jw[j] = dmxVertexData.JointWeights[i*jc+j]
+							}
+						}
+						jointIndeices = append(jointIndeices, ji)
+						jointWeights = append(jointWeights, jw)
+					}
+					attribute["JOINTS_0"] = modeler.WriteJoints(doc, dmxIndicesSort(dmxVertexData.PositionIndices, jointIndeices))
+					attribute["WEIGHTS_0"] = modeler.WriteWeights(doc, dmxIndicesSort(dmxVertexData.PositionIndices, jointWeights))
+				}
+				for _, dmxFaceSet := range dmxMesh.FaceSets {
+					primitive := &gltf.Primitive{
+						Attributes: attribute,
+						Indices: gltf.Index(
+							modeler.WriteIndices(
+								doc,
+								int32SliceTouint16Slice(
+									dmxFacesetToGLTFIndices(dmxFaceSet.Faces),
+								),
 							),
 						),
-					),
-					Material: getMaterialID(dmxFaceSet.Material.MtlName),
+						Material: getMaterialID(dmxFaceSet.Material.MtlName),
+					}
+					mesh.Primitives = append(mesh.Primitives, primitive)
 				}
-				mesh.Primitives = append(mesh.Primitives, primitive)
+				scene.Nodes = append(scene.Nodes, uint32(len(doc.Nodes)))
+				node := &gltf.Node{
+					Name: meshName,
+					Mesh: gltf.Index(uint32(len(doc.Meshes))),
+					Skin: skinID,
+				}
+				doc.Nodes = append(doc.Nodes, node)
+				doc.Meshes = append(doc.Meshes, mesh)
 			}
-			scene.Nodes = append(scene.Nodes, uint32(len(doc.Nodes)))
-			node := &gltf.Node{
-				Name: meshName,
-				Mesh: gltf.Index(uint32(len(doc.Meshes))),
-				Skin: skinID,
-			}
-			doc.Nodes = append(doc.Nodes, node)
-			doc.Meshes = append(doc.Meshes, mesh)
+			findMesh(dmxDag.Dag().Children)
 		}
-	}
+	} // findMesh
+	findMesh(dmxElement.Model.Children)
 	return doc, nil
 }
 

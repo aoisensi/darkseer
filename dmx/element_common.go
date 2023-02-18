@@ -54,6 +54,7 @@ func parseOnlyDag(e *internal.Element) *DmeDag {
 		for i, c := range eChildlen {
 			children[i] = parseDag(c)
 		}
+		result.Children = children
 	}
 	if shape, ok := e.Attributes["shape"]; ok && shape != nil {
 		shape := shape.(*internal.Element)
@@ -81,10 +82,10 @@ func parseDagList(e any) []IDag {
 
 type DmeJoint struct {
 	*DmeDag
-	Transform *DmeTransform
-	Visible   bool
-	Children  []IDag
-	// LockInfluenceWeights bool
+	Transform            *DmeTransform
+	Visible              bool
+	Children             []IDag
+	LockInfluenceWeights bool
 }
 
 func parseJoint(e *internal.Element) *DmeJoint {
@@ -102,13 +103,16 @@ func parseJoint(e *internal.Element) *DmeJoint {
 	for i, c := range eChildlen {
 		children[i] = parseDag(c)
 	}
-	return &DmeJoint{
+	joint := &DmeJoint{
 		DmeDag:    parseOnlyDag(e),
 		Transform: parseTransform(e.Attributes["transform"].(*internal.Element)),
 		Visible:   e.Attributes["visible"].(bool),
 		Children:  children,
-		// LockInfluenceWeights: e.Attributes["lockInfluenceWeights"].(bool),
 	}
+	if lockInfluenceWeights, ok := e.Attributes["lockInfluenceWeights"]; ok {
+		joint.LockInfluenceWeights = lockInfluenceWeights.(bool)
+	}
+	return joint
 }
 
 type DmeTransformList struct {

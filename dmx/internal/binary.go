@@ -3,7 +3,7 @@ package internal
 import (
 	"encoding/binary"
 	"fmt"
-	"image"
+	"image/color"
 	"io"
 	"time"
 
@@ -113,8 +113,8 @@ func (d *Decoder) decodeBinaryAttribute(typeID byte) any {
 		binary.Read(d.r, binary.LittleEndian, &value)
 		data := time.Microsecond * 100 * time.Duration(value)
 		return data
-	case 8: // image.RGBA
-		var value image.RGBA
+	case 8: // color.RGBA
+		var value color.RGBA
 		binary.Read(d.r, binary.LittleEndian, &value)
 		return value
 	case 9: // [2]float32 Vec2
@@ -200,7 +200,7 @@ func (d *Decoder) decodeBinaryAttribute(typeID byte) any {
 		}
 		return result
 	case 8:
-		result := make([]image.RGBA, length)
+		result := make([]color.RGBA, length)
 		binary.Read(d.r, binary.LittleEndian, &result)
 		return result
 	case 9:

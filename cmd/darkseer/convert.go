@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/aoisensi/darkseer/dmx"
@@ -9,7 +10,8 @@ import (
 	"github.com/samber/lo"
 )
 
-func convertModel(dmxElement *dmx.DmElement) (*gltf.Document, error) {
+func convertModel(title string, dmxElement *dmx.DmElement) (*gltf.Document, error) {
+	fmt.Println(title)
 	doc := gltf.NewDocument()
 	doc.Scene = gltf.Index(0)
 	scene := &gltf.Scene{}
@@ -33,12 +35,12 @@ func convertModel(dmxElement *dmx.DmElement) (*gltf.Document, error) {
 	var skinID *uint32
 
 	// Find skins
-	for _, dmxChild := range dmxElement.Model.Children {
+	for _, dmxChild := range dmxElement.Skeleton.Children {
 		var joints []uint32
 		if dmxJoint, ok := dmxChild.(*dmx.DmeJoint); ok {
 			var addJoint func(*dmx.DmeJoint) *uint32
 			addJoint = func(dmxJoint *dmx.DmeJoint) *uint32 {
-				if strings.Contains(dmxJoint.Name, "End") {
+				if strings.Contains(dmxJoint.Name, "End") || strings.Contains(dmxJoint.Name, "parentConstraint") {
 					return nil
 				}
 				nodeID := uint32(len(doc.Nodes))
@@ -137,7 +139,70 @@ func convertModel(dmxElement *dmx.DmElement) (*gltf.Document, error) {
 			findMesh(dmxDag.Dag().Children)
 		}
 	} // findMesh
-	findMesh(dmxElement.Model.Children)
+	if dmxElement.Model != nil {
+		findMesh(dmxElement.Model.Children)
+	}
+
+	// Find animations
+	if dmxElement.AnimationList != nil {
+		for _, dmxAnimation := range dmxElement.AnimationList.Animations {
+			animation := &gltf.Animation{
+				Name: title,
+			}
+			for _, dmxChannel := range dmxAnimation.Channels {
+				samplerID := uint32(len(animation.Samplers))
+				sampler := &gltf.AnimationSampler{
+					Interpolation: gltf.InterpolationLinear,
+				}
+				joint, found := jointMap[dmxChannel.ToElement.Name]
+				if !found {
+					continue
+				}
+				channel := &gltf.Channel{
+					Sampler: gltf.Index(samplerID),
+					Target: gltf.ChannelTarget{
+						Node: gltf.Index(joint),
+					},
+				}
+
+				writeInput := func(input []int32) {
+					times := mulTimes(input)
+					sampler.Input = modeler.WriteAccessor(
+						doc,
+						gltf.TargetNone,
+						times,
+					)
+					accessor := doc.Accessors[int(sampler.Input)]
+					accessor.Min = []float32{lo.Min(times)}
+					accessor.Max = []float32{lo.Max(times)}
+				}
+
+				if dmxChannel.LogVector3 != nil {
+					channel.Target.Path = gltf.TRSTranslation
+					writeInput(dmxChannel.LogVector3.Layers[0].Times)
+					sampler.Output = modeler.WritePosition(
+						doc,
+						mulGlobalScale(dmxChannel.LogVector3.Layers[0].Values),
+					)
+				} else if dmxChannel.LogQuaternion != nil {
+					channel.Target.Path = gltf.TRSRotation
+					writeInput(dmxChannel.LogQuaternion.Layers[0].Times)
+					sampler.Output = modeler.WriteAccessor(
+						doc,
+						gltf.TargetNone,
+						dmxChannel.LogQuaternion.Layers[0].Values,
+					)
+				} else {
+					continue
+				}
+				bvID := doc.Accessors[sampler.Output].BufferView
+				doc.BufferViews[*bvID].Target = gltf.TargetNone
+				animation.Samplers = append(animation.Samplers, sampler)
+				animation.Channels = append(animation.Channels, channel)
+			}
+			doc.Animations = append(doc.Animations, animation)
+		}
+	}
 	return doc, nil
 }
 
@@ -209,6 +274,14 @@ func mulGlobalScale[T GlobalScaler](values T) T {
 	default:
 		panic("unreachable")
 	}
+}
+
+func mulTimes(s []int32) []float32 {
+	result := make([]float32, len(s))
+	for i, v := range s {
+		result[i] = float32(v) * 0.0001
+	}
+	return result
 }
 
 /*

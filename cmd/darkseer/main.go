@@ -34,12 +34,14 @@ func main() {
 				log.Println("❌", err)
 				continue
 			}
-			doc, err := convertModel(element)
+			noext := strings.TrimSuffix(name, ".dmx")
+
+			doc, err := convertModel(filepath.Base(noext), element)
 			if err != nil {
 				log.Println("❌", err)
 				continue
 			}
-			nameGLTF := strings.TrimSuffix(name, ".dmx") + ".gltf"
+			nameGLTF := noext + ".gltf"
 			if err := gltf.Save(doc, nameGLTF); err != nil {
 				log.Println("❌", err)
 				continue

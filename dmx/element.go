@@ -8,9 +8,10 @@ import (
 var elementMap map[uuid.UUID]any
 
 type DmElement struct {
-	Name     string
-	Model    *DmeModel
-	Skeleton *DmeModel
+	Name          string
+	Model         *DmeModel
+	Skeleton      *DmeModel
+	AnimationList *DmeAnimationList
 }
 
 func parseElement(e *internal.Element) *DmElement {
@@ -20,11 +21,17 @@ func parseElement(e *internal.Element) *DmElement {
 	if e.Type != "DmElement" {
 		panic("dmx: invalid element type")
 	}
-	return &DmElement{
-		Name:     e.Name,
-		Model:    parseModel(e.Attributes["model"].(*internal.Element)),
-		Skeleton: parseModel(e.Attributes["skeleton"].(*internal.Element)),
+	element := &DmElement{Name: e.Name}
+	if model, ok := e.Attributes["model"]; ok && model != nil {
+		element.Model = parseModel(model.(*internal.Element))
 	}
+	if skeleton, ok := e.Attributes["skeleton"]; ok && skeleton != nil {
+		element.Skeleton = parseModel(skeleton.(*internal.Element))
+	}
+	if animationList, ok := e.Attributes["animationList"]; ok && animationList != nil {
+		element.AnimationList = parseAnimationList(animationList.(*internal.Element))
+	}
+	return element
 	// elementMap[e.ID] = result
 	// return result
 }
